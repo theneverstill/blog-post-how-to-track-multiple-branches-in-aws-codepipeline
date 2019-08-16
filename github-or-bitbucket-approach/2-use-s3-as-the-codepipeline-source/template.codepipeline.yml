@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create a CodePipeline pipeline with an S3 bucket as the source"
+
+Parameters:
+  S3BucketNameArtifacts:
+    AllowedPattern: "(?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    ConstraintDescription: "S3BucketNameArtifacts must be a valid S3 bucket name. Allowed pattern: (?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    Description: "The S3 artifacts bucket name, e.g. artifacts.example.com"
+    Type: "String"
+  S3KeyNameSource:
+    AllowedPattern: "(?=^.{1,1024}$)(?!^.*//.*$)^(([a-zA-Z0-9!_.*'()-]+)/)*([a-zA-Z0-9!_.*'()-]+)$"
+    ConstraintDescription: "S3KeyNameSource must be a valid S3 key name. Allowed pattern: (?=^.{1,1024}$)(?!^.*//.*$)^(([a-zA-Z0-9!_.*'()-]+)/)*([a-zA-Z0-9!_.*'()-]+)$"
+    Description: "The S3 source key name, e.g. source.zip"
+    Type: "String"
+
+Resources:
+  IamRoleCodePipeline:
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+      Path: "/"
+    Type: "AWS::IAM::Role"
+  CodePipelinePipeline:
+    DependsOn:
+      - "IamRoleCodePipeline"
+    Properties:
+      ArtifactStore:
+        Location: !Ref "S3BucketNameArtifacts"
+        Type: "S3"
+      RoleArn: !GetAtt "IamRoleCodePipeline.Arn"
+      Stages:
+        - Actions:
+            - ActionTypeId:
+                Category: "Source"
+                Owner: "AWS"
+                Version: "1"
+                Provider: "S3"
+              Configuration:
+                S3Bucket: !Ref "S3BucketNameArtifacts"
+                S3ObjectKey: !Ref "S3KeyNameSource"
+              Name: "Source"
+              OutputArtifacts:
+                - Name: "Source"
+              RunOrder: 1
+          Name: "Source"
+        - Actions:
+            - ActionTypeId:
+                Category: "Approval"
+                Owner: "AWS"
+                Version: "1"
+                Provider: "Manual"
+              InputArtifacts: []
+              Name: "Approve"
+              OutputArtifacts: []
+              RunOrder: 1
+          Name: "Approve"
+    Type: "AWS::CodePipeline::Pipeline"
+
+Outputs:
+  CodePipelinePipelineName:
+    Description: "CodePipeline Pipeline Name"
+    Value: !Ref "CodePipelinePipeline"
+  CodePipelinePipelineVersion:
+    Description: "CodePipeline Pipeline Version"
+    Value: !GetAtt "CodePipelinePipeline.Version"
+  IamRoleCodePipelineArn:
+    Description: "IAM Role CodePipeline ARN"
+    Value: !GetAtt "IamRoleCodePipeline.Arn"
+  IamRoleCodePipelineName:
+    Description: "IAM Role CodePipeline Name"
+    Value: !Ref "IamRoleCodePipeline"
+  IamRoleCodePipelineRoleId:
+    Description: "IAM Role CodePipeline Role Id"
+    Value: !GetAtt "IamRoleCodePipeline.RoleId"

@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create an S3 bucket with versioning"
+
+Parameters:
+  S3BucketNameArtifacts:
+    AllowedPattern: "(?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    ConstraintDescription: "S3BucketNameArtifacts must be a valid S3 bucket name. Allowed pattern: (?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    Description: "The S3 artifacts bucket name, e.g. artifacts.example.com"
+    Type: "String"
+
+Resources:
+  S3BucketArtifacts:
+    Properties:
+      BucketName: !Ref "S3BucketNameArtifacts"
+      VersioningConfiguration:
+        Status: "Enabled"
+    Type: "AWS::S3::Bucket"
+
+Outputs:
+  S3BucketArtifactsArn:
+    Description: "S3 Bucket Artifacts ARN"
+    Value: !GetAtt "S3BucketArtifacts.Arn"
+  S3BucketArtifactsDomainName:
+    Description: "S3 Bucket Artifacts Domain Name"
+    Value: !GetAtt "S3BucketArtifacts.DomainName"
+  S3BucketArtifactsDualStackDomainName:
+    Description: "S3 Bucket Artifacts Dual Stack Domain Name"
+    Value: !GetAtt "S3BucketArtifacts.DualStackDomainName"
+  S3BucketArtifactsName:
+    Description: "S3 Bucket Artifacts Name"
+    Value: !Ref "S3BucketArtifacts"
+  S3BucketArtifactsRegionalDomainName:
+    Description: "S3 Bucket Artifacts Regional Domain Name"
+    Value: !GetAtt "S3BucketArtifacts.RegionalDomainName"
+  S3BucketArtifactsWebsiteURL:
+    Description: "S3 Bucket Artifacts Website URL"
+    Value: !GetAtt "S3BucketArtifacts.WebsiteURL"

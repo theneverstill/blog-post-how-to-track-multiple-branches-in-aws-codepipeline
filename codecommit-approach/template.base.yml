@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create a CodeCommit repository with a Lambda trigger"
+
+Parameters:
+  S3BucketNameArtifacts:
+    AllowedPattern: "(?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    ConstraintDescription: "S3BucketNameArtifacts must be a valid S3 bucket name. Allowed pattern: (?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    Description: "The S3 artifacts bucket name, e.g. artifacts.example.com"
+    Type: "String"
+  S3KeyNameLambda:
+    AllowedPattern: "(?=^.{1,1024}$)(?!^.*//.*$)^(([a-zA-Z0-9!_.*'()-]+)/)*([a-zA-Z0-9!_.*'()-]+)$"
+    ConstraintDescription: "S3KeyNameLambda must be a valid S3 key name. Allowed pattern: (?=^.{1,1024}$)(?!^.*//.*$)^(([a-zA-Z0-9!_.*'()-]+)/)*([a-zA-Z0-9!_.*'()-]+)$"
+    Description: "The S3 Lambda source key name, e.g. lambda.zip"
+    Type: "String"
+  RepositoryName:
+    AllowedPattern: "^[a-zA-Z0-9._-]{1,100}$(?<!\\\\.git)"
+    ConstraintDescription: "RepositoryName must be a valid CodeCommit repository name. Allowed pattern: [a-zA-Z0-9._-]{1,100}$(?<!\\\\.git)"
+    Description: "The CodeCommit repository name, e.g. example"
+    Type: "String"
+
+Resources:
+  IamRoleLambda:
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+      Path: "/"
+    Type: "AWS::IAM::Role"
+  LambdaFunctionDeployBranchPipeline:
+    DependsOn:
+      - "IamRoleLambda"
+    Properties:
+      Code:
+        S3Bucket: !Ref "S3BucketNameArtifacts"
+        S3Key: !Ref "S3KeyNameLambda"
+      FunctionName: !Sub "${RepositoryName}-trigger"
+      Handler: "lambda.handler"
+      MemorySize: 128
+      Role: !GetAtt "IamRoleLambda.Arn"
+      Runtime: "nodejs8.10"
+      Timeout: 5
+    Type: "AWS::Lambda::Function"
+  CodeCommitRepository:
+    DependsOn:
+      - "LambdaFunctionDeployBranchPipeline"
+    Properties:
+      RepositoryName: !Ref "RepositoryName"
+      Triggers:
+        - DestinationArn: !GetAtt "LambdaFunctionDeployBranchPipeline.Arn"
+          Events:
+            - "createReference"
+            - "deleteReference"
+          Name: "codepipeline-trigger"
+    Type: "AWS::CodeCommit::Repository"
+  LambdaInvokePermission:
+    DependsOn:
+      - "CodeCommitRepository"
+      - "LambdaFunctionDeployBranchPipeline"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt "LambdaFunctionDeployBranchPipeline.Arn"
+      Principal: "codecommit.amazonaws.com"
+      SourceArn: !GetAtt "CodeCommitRepository.Arn"
+    Type: "AWS::Lambda::Permission"
+
+Outputs:
+  CodeCommitRepositoryArn:
+    Description: "CodeCommit Repository ARN"
+    Value: !GetAtt "CodeCommitRepository.Arn"
+  CodeCommitRepositoryCloneUrlHttp:
+    Description: "CodeCommit Repository HTTP Clone URL"
+    Value: !GetAtt "CodeCommitRepository.CloneUrlHttp"
+  CodeCommitRepositoryCloneUrlSsh:
+    Description: "CodeCommit Repository SSH Clone URL"
+    Value: !GetAtt "CodeCommitRepository.CloneUrlSsh"
+  CodeCommitRepositoryId:
+    Description: "CodeCommit Repository Id"
+    Value: !Ref "CodeCommitRepository"
+  CodeCommitRepositoryName:
+    Description: "CodeCommit Repository Name"
+    Value: !GetAtt "CodeCommitRepository.Name"
+  IamRoleLambdaArn:
+    Description: "IAM Role Lambda ARN"
+    Value: !GetAtt "IamRoleLambda.Arn"
+  IamRoleLambdaName:
+    Description: "IAM Role Lambda Name"
+    Value: !Ref "IamRoleLambda"
+  IamRoleLambdaRoleId:
+    Description: "IAM Role Lambda Role Id"
+    Value: !GetAtt "IamRoleLambda.RoleId"
+  LambdaFunctionDeployBranchPipelineArn:
+    Description: "Lambda Function Deploy Branch Pipeline ARN"
+    Value: !GetAtt "LambdaFunctionDeployBranchPipeline.Arn"
+  LambdaFunctionDeployBranchPipelineName:
+    Description: "Lambda Function Deploy Branch Pipeline Name"
+    Value: !Ref "LambdaFunctionDeployBranchPipeline"

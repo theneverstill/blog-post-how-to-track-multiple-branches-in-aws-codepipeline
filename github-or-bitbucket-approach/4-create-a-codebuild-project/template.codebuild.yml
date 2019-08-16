@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create a CodeBuild project with GitHub or Bitbucket as the source"
+
+Parameters:
+  S3BucketNameArtifacts:
+    AllowedPattern: "(?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    ConstraintDescription: "S3BucketNameArtifacts must be a valid S3 bucket name. Allowed pattern: (?=^.{3,63}$)(?!^(\\\\d+\\\\.){3}\\\\d+$)^(([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])\\\\.)*([a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])$"
+    Description: "The S3 artifacts bucket name, e.g. artifacts.example.com"
+    Type: "String"
+  S3KeyNameSource:
+    AllowedPattern: "(?=^.{1,1024}$)(?!^.*//.*$)^(([a-zA-Z0-9!_.*'()-]+)/)*([a-zA-Z0-9!_.*'()-]+)$"
+    ConstraintDescription: "S3KeyNameSource must be a valid S3 key name. Allowed pattern: (?=^.{1,1024}$)(?!^.*//.*$)^(([a-zA-Z0-9!_.*'()-]+)/)*([a-zA-Z0-9!_.*'()-]+)$"
+    Description: "The S3 source key name, e.g. source.zip"
+    Type: "String"
+  RepositoryType:
+    AllowedValues:
+      - "BITBUCKET"
+      - "GITHUB"
+      - "GITHUB_ENTERPRISE"
+    ConstraintDescription: "RepositoryType must be a valid repository type. Allowed values: BITBUCKET, GITHUB, GITHUB_ENTERPRISE"
+    Description: "The repository type, e.g. GITHUB"
+    Type: "String"
+  RepositoryLocation:
+    AllowedPattern: "^https?://.*$"
+    ConstraintDescription: "RepositoryLocation must be the HTTPS (HTTP is allowed if RepositoryType is GITHUB_ENTERPRISE) clone URL to the repository. Allowed pattern: ^https?://.*$"
+    Description: "The repository location, e.g. https://github.com/example/example.git"
+    Type: "String"
+
+Resources:
+  IamRoleCodeBuild:
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+      Path: "/"
+    Type: "AWS::IAM::Role"
+  CodeBuildProjectSource:
+    DependsOn:
+      - "IamRoleCodeBuild"
+    Properties:
+      Artifacts:
+        Location: !Ref "S3BucketNameArtifacts"
+        Name: !Ref "S3KeyNameSource"
+        Packaging: "ZIP"
+        Type: "S3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/ubuntu-base:14.04"
+        Type: "LINUX_CONTAINER"
+      ServiceRole: !GetAtt "IamRoleCodeBuild.Arn"
+      Source:
+        Auth:
+          Type: "OAUTH"
+        GitCloneDepth: 1
+        Location: !Ref "RepositoryLocation"
+        Type: !Ref "RepositoryType"
+      TimeoutInMinutes: 5
+      Triggers:
+        Webhook: true
+    Type: "AWS::CodeBuild::Project"
+
+Outputs:
+  CodeBuildProjectSourceArn:
+    Description: "CodeBuild Project Source ARN"
+    Value: !GetAtt "CodeBuildProjectSource.Arn"
+  CodeBuildProjectSourceName:
+    Description: "CodeBuild Project Source Name"
+    Value: !Ref "CodeBuildProjectSource"
+  IamRoleCodeBuildArn:
+    Description: "IAM Role CodeBuild ARN"
+    Value: !GetAtt "IamRoleCodeBuild.Arn"
+  IamRoleCodeBuildName:
+    Description: "IAM Role CodeBuild Name"
+    Value: !Ref "IamRoleCodeBuild"
+  IamRoleCodeBuildRoleId:
+    Description: "IAM Role CodeBuild Role Id"
+    Value: !GetAtt "IamRoleCodeBuild.RoleId"
